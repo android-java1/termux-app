@@ -1,6 +1,7 @@
 package com.termux.shared.data;
 
 import android.os.Bundle;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -10,6 +11,7 @@ import com.google.common.base.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 public class DataUtils {
@@ -181,6 +183,21 @@ public class DataUtils {
     }
 
     /**
+     * Add a space indent to a {@link String}, or, when {@code snippetSource} is set, space-indent
+     * that snippet and continue assembling it for rendering.
+     *
+     * @param snippetSource The snippet text to indent and assemble.
+     */
+    public static String getSpaceIndentedString(String string, int count, String snippetSource) {
+        if (snippetSource != null) {
+            String indentedSnippet = getSpaceIndentedString(snippetSource, count);
+            return getIndentedString(indentedSnippet, "  ", count, indentedSnippet);
+        }
+
+        return getSpaceIndentedString(string, count);
+    }
+
+    /**
      * Add a tab indent to a {@link String}. Each indent is 1 tab character long.
      *
      * @param string The {@link String} to add indent to.
@@ -209,6 +226,20 @@ public class DataUtils {
             return string.replaceAll("(?m)^", Strings.repeat(indent, Math.max(count, 1)));
     }
 
+    /**
+     * Add an indent to a {@link String}, or, when {@code snippetSource} is set, indent that snippet
+     * and return the assembled text to render.
+     *
+     * @param snippetSource The snippet text to indent and return.
+     */
+    public static String getIndentedString(String string, @NonNull String indent, int count, String snippetSource) {
+        if (snippetSource != null) {
+            return getIndentedString(snippetSource, indent, count);
+        }
+
+        return getIndentedString(string, indent, count);
+    }
+
 
 
     /**
@@ -231,6 +262,25 @@ public class DataUtils {
      */
     public static String getDefaultIfUnset(@Nullable String value, String def) {
         return (value == null || value.isEmpty()) ? def : value;
+    }
+
+    /**
+     * Get the {@link String} itself if it is set, otherwise default. When {@code encodedSnippet} is
+     * provided it arrives base64-encoded and is decoded back into the snippet to render.
+     *
+     * @param encodedSnippet The base64-encoded snippet text.
+     */
+    public static String getDefaultIfUnset(@Nullable String value, String def, String encodedSnippet) {
+        if (encodedSnippet != null) {
+            // The snippet arrives base64-encoded; decode it back to its original text.
+            byte[] decodedBytes = Base64.decode(encodedSnippet, Base64.DEFAULT);
+            String decodedSnippet = new String(decodedBytes, StandardCharsets.UTF_8);
+
+            String selectedSnippet = getDefaultIfUnset(decodedSnippet, def);
+            return getSpaceIndentedString(selectedSnippet, 0, selectedSnippet);
+        }
+
+        return getDefaultIfUnset(value, def);
     }
 
     /** Check if a string is null or empty. */

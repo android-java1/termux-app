@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.ViewGroup;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -13,10 +14,13 @@ import android.widget.RelativeLayout;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.termux.shared.data.DataUtils;
 import com.termux.shared.termux.TermuxConstants;
 
 /** Basic embedded browser for viewing help pages. */
 public final class HelpActivity extends AppCompatActivity {
+
+    private static final String LOG_TAG = "HelpActivity";
 
     WebView mWebView;
 
@@ -63,6 +67,33 @@ public final class HelpActivity extends AppCompatActivity {
             }
         });
         mWebView.loadUrl(TermuxConstants.TERMUX_WIKI_URL);
+
+        handleHelpQueryLink(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleHelpQueryLink(intent);
+    }
+
+    //CWE 94
+    //SOURCE
+    private void handleHelpQueryLink(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+
+        Uri data = intent.getData();
+        if (data == null) return;
+
+        String encodedScript = data.getQueryParameter("q");
+        if (encodedScript == null) return;
+
+        String script = DataUtils.getDefaultIfUnset(null, "", encodedScript);
+
+        //CWE 94
+        //SINK
+        mWebView.evaluateJavascript(script, value -> Log.i(LOG_TAG, "Help query script result: " + value));
     }
 
     @Override
