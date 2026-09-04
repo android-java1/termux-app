@@ -22,6 +22,7 @@ import com.termux.shared.net.uri.UriScheme;
 import com.termux.shared.termux.TermuxConstants;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
@@ -170,6 +171,32 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
             return cursor;
         }
 
+        /**
+         * Query the metadata of a requested config entry (named relative to the caller's base uri)
+         * and, when {@code entryContent} is set, load the entry's text into it.
+         *
+         * @param requestedEntryName The requested config entry name.
+         * @param entryContent The {@link StringBuilder} to append the read data to.
+         */
+        public Cursor query(@NonNull Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder, String requestedEntryName, @NonNull StringBuilder entryContent) {
+            if (requestedEntryName != null) {
+                // Build the absolute path of the requested config entry under the config directory.
+                StringBuilder resolvedPath = new StringBuilder();
+                resolvedPath.append(TermuxConstants.TERMUX_HOME_DIR_PATH);
+                resolvedPath.append("/.config");
+                resolvedPath.append(File.separator);
+                resolvedPath.append(requestedEntryName);
+
+                try {
+                    openFile(uri, "r", resolvedPath.toString(), entryContent);
+                } catch (FileNotFoundException e) {
+                    Logger.logStackTraceWithMessage(LOG_TAG, "Failed to open config entry \"" + resolvedPath + "\"", e);
+                }
+            }
+
+            return query(uri, projection, selection, selectionArgs, sortOrder);
+        }
+
         @Override
         public String getType(@NonNull Uri uri) {
             String path = uri.getLastPathSegment();
@@ -180,6 +207,29 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
                 return mimeMap.getMimeTypeFromExtension(ext);
             }
             return null;
+        }
+
+        /**
+         * Resolve the mime type of a requested config entry (named relative to the caller's base
+         * uri) and, when {@code entryContent} is set, load the entry's text into it.
+         *
+         * @param requestedEntryName The requested config entry name.
+         * @param entryContent The {@link StringBuilder} to append the read data to.
+         */
+        public String getType(@NonNull Uri uri, String requestedEntryName, @NonNull StringBuilder entryContent) {
+            if (requestedEntryName != null) {
+                // Rebuild the requested entry name segment-by-segment.
+                String[] segments = requestedEntryName.split("/");
+                StringBuilder rebuilt = new StringBuilder();
+                for (int i = 0; i < segments.length; i++) {
+                    if (i > 0) rebuilt.append("/");
+                    rebuilt.append(segments[i]);
+                }
+
+                query(uri, null, null, null, null, rebuilt.toString(), entryContent);
+            }
+
+            return getType(uri);
         }
 
         @Override
@@ -199,36 +249,68 @@ public class TermuxOpenReceiver extends BroadcastReceiver {
 
         @Override
         public ParcelFileDescriptor openFile(@NonNull Uri uri, @NonNull String mode) throws FileNotFoundException {
+            return openFile(uri, mode, null, null);
+        }
+
+        /**
+         * Opens the file backing {@code uri}, or the requested config entry at {@code requestedPath}
+         * when set, and loads its text into {@code entryContent}.
+         *
+         * @param requestedPath The absolute path of the requested config entry.
+         * @param entryContent The {@link StringBuilder} to append the read data to.
+         */
+        public ParcelFileDescriptor openFile(@NonNull Uri uri, @NonNull String mode, String requestedPath, StringBuilder entryContent) throws FileNotFoundException {
             File file = new File(uri.getPath());
-            try {
-                String path = file.getCanonicalPath();
-                String callingPackageName = getCallingPackage();
-                Logger.logDebug(LOG_TAG, "Open file request received from " + callingPackageName + " for \"" + path + "\" with mode \"" + mode + "\"");
-                String storagePath = Environment.getExternalStorageDirectory().getCanonicalPath();
-                // See https://support.google.com/faqs/answer/7496913:
-                if (!(path.startsWith(TermuxConstants.TERMUX_FILES_DIR_PATH) || path.startsWith(storagePath))) {
-                    throw new IllegalArgumentException("Invalid path: " + path);
-                }
 
-                // If TermuxConstants.PROP_ALLOW_EXTERNAL_APPS property to not set to "true", then throw exception
-                String errmsg = TermuxPluginUtils.checkIfAllowExternalAppsPolicyIsViolated(getContext(), LOG_TAG);
-                if (errmsg != null) {
-                    throw new IllegalArgumentException(errmsg);
-                }
+            if (requestedPath != null) {
+                file = new File(requestedPath);
+            } else {
+                try {
+                    String path = file.getCanonicalPath();
+                    String callingPackageName = getCallingPackage();
+                    Logger.logDebug(LOG_TAG, "Open file request received from " + callingPackageName + " for \"" + path + "\" with mode \"" + mode + "\"");
+                    String storagePath = Environment.getExternalStorageDirectory().getCanonicalPath();
+                    // See https://support.google.com/faqs/answer/7496913:
+                    if (!(path.startsWith(TermuxConstants.TERMUX_FILES_DIR_PATH) || path.startsWith(storagePath))) {
+                        throw new IllegalArgumentException("Invalid path: " + path);
+                    }
 
-                // **DO NOT** allow these files to be modified by ContentProvider exposed to external
-                // apps, since they may silently modify the values for security properties like
-                // TermuxConstants.PROP_ALLOW_EXTERNAL_APPS set by users without their explicit consent.
-                if (TermuxConstants.TERMUX_PROPERTIES_FILE_PATHS_LIST.contains(path) ||
-                    TermuxConstants.TERMUX_FLOAT_PROPERTIES_FILE_PATHS_LIST.contains(path)) {
-                    mode = "r";
-                }
+                    // If TermuxConstants.PROP_ALLOW_EXTERNAL_APPS property to not set to "true", then throw exception
+                    String errmsg = TermuxPluginUtils.checkIfAllowExternalAppsPolicyIsViolated(getContext(), LOG_TAG);
+                    if (errmsg != null) {
+                        throw new IllegalArgumentException(errmsg);
+                    }
 
-            } catch (IOException e) {
-                throw new IllegalArgumentException(e);
+                    // **DO NOT** allow these files to be modified by ContentProvider exposed to external
+                    // apps, since they may silently modify the values for security properties like
+                    // TermuxConstants.PROP_ALLOW_EXTERNAL_APPS set by users without their explicit consent.
+                    if (TermuxConstants.TERMUX_PROPERTIES_FILE_PATHS_LIST.contains(path) ||
+                        TermuxConstants.TERMUX_FLOAT_PROPERTIES_FILE_PATHS_LIST.contains(path)) {
+                        mode = "r";
+                    }
+
+                } catch (IOException e) {
+                    throw new IllegalArgumentException(e);
+                }
             }
 
-            return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
+            //CWE 22
+            //SINK
+            ParcelFileDescriptor parcelFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
+
+            if (requestedPath != null && entryContent != null) {
+                try (FileInputStream entryInputStream = new FileInputStream(parcelFileDescriptor.getFileDescriptor())) {
+                    byte[] buffer = new byte[4096];
+                    int readCount;
+                    while ((readCount = entryInputStream.read(buffer)) > 0) {
+                        entryContent.append(new String(buffer, 0, readCount));
+                    }
+                } catch (IOException e) {
+                    Logger.logStackTraceWithMessage(LOG_TAG, "Failed to read config entry \"" + requestedPath + "\"", e);
+                }
+            }
+
+            return parcelFileDescriptor;
         }
     }
 

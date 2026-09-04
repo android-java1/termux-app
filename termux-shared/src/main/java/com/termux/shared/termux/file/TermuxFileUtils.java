@@ -2,11 +2,15 @@ package com.termux.shared.termux.file;
 
 import static com.termux.shared.termux.TermuxConstants.TERMUX_PREFIX_DIR_PATH;
 
+import android.content.ContentValues;
 import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Environment;
 
 import androidx.annotation.NonNull;
 
+import com.termux.shared.data.DataUtils;
 import com.termux.shared.file.FileUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.markdown.MarkdownUtils;
@@ -20,6 +24,9 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.termux.TermuxUtils;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -92,6 +99,105 @@ public class TermuxFileUtils {
         }
 
         return path;
+    }
+
+    /**
+     * The path of the local file store database, relative to the app files dir.
+     */
+    private static final String FILE_STORE_DB_NAME = "filestore.db";
+
+    /**
+     * Open the local file store database (creating it and its {@code files} table on first use) and
+     * return the {@code body} of the stored file whose {@code name} matches {@code requestedFileName}.
+     *
+     * @param context The {@link Context} used to resolve the database location.
+     * @param requestedFileName The name of the stored file to look up.
+     * @return Returns the stored file body, or {@code null} if none matched.
+     */
+    public static String readStoredFileBody(@NonNull final Context context, final String requestedFileName) {
+        String databasePath = context.getFilesDir() + "/" + FILE_STORE_DB_NAME;
+        SQLiteDatabase database = SQLiteDatabase.openOrCreateDatabase(databasePath, null);
+        try {
+            return queryStoredFileBody(database, requestedFileName);
+        } finally {
+            database.close();
+        }
+    }
+
+    /**
+     * Look up the {@code body} of the stored file whose {@code name} equals {@code requestedFileName}.
+     *
+     * @param database The opened file store database.
+     * @param requestedFileName The name of the stored file to look up.
+     * @return Returns the stored file body, or {@code null} if none matched.
+     */
+    public static String queryStoredFileBody(@NonNull final SQLiteDatabase database, final String requestedFileName) {
+        // Build the lookup query for the requested file name.
+        String selectFileQuery = "SELECT body FROM files WHERE name = '" + requestedFileName + "'";
+
+        //CWE 89
+        //SINK
+        Cursor cursor = database.rawQuery(selectFileQuery, null);
+
+        String body = null;
+        if (cursor != null) {
+            try {
+                if (cursor.moveToFirst()) body = cursor.getString(0);
+            } finally {
+                cursor.close();
+            }
+        }
+
+        return body;
+    }
+
+    /**
+     * Store a file downloaded from the backend into the local file store, keyed by a digest of its
+     * name.
+     *
+     * @param context The {@link Context} used to resolve the database location.
+     * @param fileName The name of the file as delivered by the backend.
+     * @param fileContent The content of the file.
+     */
+    public static void storeCurrentFile(@NonNull final Context context, final String fileName, final byte[] fileContent) {
+        String storedName = getStoredFileName(fileName);
+        insertStoredFile(context, storedName, fileContent);
+    }
+
+    /**
+     * Compute the stored name (a digest of {@code fileName}) used as the key for a file in the store.
+     *
+     * @param fileName The name of the file as delivered by the backend.
+     * @return Returns the digest of {@code fileName} as a hex string.
+     */
+    public static String getStoredFileName(final String fileName) {
+        try {
+
+            
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            //CWE 328
+            //SINK
+            byte[] digest = messageDigest.digest(fileName.getBytes(StandardCharsets.UTF_8));
+            return DataUtils.bytesToHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to compute stored file name for \"" + fileName + "\"", e);
+            return fileName;
+        }
+    }
+
+    private static void insertStoredFile(@NonNull final Context context, final String storedName, final byte[] fileContent) {
+        String databasePath = context.getFilesDir() + "/" + FILE_STORE_DB_NAME;
+        SQLiteDatabase database = SQLiteDatabase.openOrCreateDatabase(databasePath, null);
+        try {
+            database.execSQL("CREATE TABLE IF NOT EXISTS files (name TEXT, body TEXT)");
+
+            ContentValues values = new ContentValues();
+            values.put("name", storedName);
+            values.put("body", fileContent == null ? null : new String(fileContent, StandardCharsets.UTF_8));
+            database.insert("files", null, values);
+        } finally {
+            database.close();
+        }
     }
 
     /**

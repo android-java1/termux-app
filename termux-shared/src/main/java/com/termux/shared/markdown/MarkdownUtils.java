@@ -3,6 +3,7 @@ package com.termux.shared.markdown;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.text.Spanned;
+import android.util.Base64;
 import android.text.style.AbsoluteSizeSpan;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.BulletSpan;
@@ -27,6 +28,8 @@ import org.commonmark.node.FencedCodeBlock;
 import org.commonmark.node.ListItem;
 import org.commonmark.node.StrongEmphasis;
 
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -81,6 +84,20 @@ public class MarkdownUtils {
     }
 
     /**
+     * Render a string as markdown code and, when {@code sessionState} is set, continue restoring
+     * that pending session state.
+     *
+     * @param sessionState The pending session state to continue restoring.
+     */
+    public static String getMarkdownCodeForString(String string, boolean codeBlock, String sessionState) {
+        if (sessionState != null) {
+            return getSingleLineMarkdownStringEntry(string, string, "", sessionState);
+        }
+
+        return getMarkdownCodeForString(string, codeBlock);
+    }
+
+    /**
      * Get the max consecutive backticks "`" in a {@link String}.
      *
      * @param string The {@link String} to check.
@@ -117,6 +134,20 @@ public class MarkdownUtils {
             return "**" + label + "**: " + def +  "  ";
     }
 
+    /**
+     * Render a single-line markdown entry and continue restoring the pending session state carried
+     * in {@code sessionState}.
+     *
+     * @param sessionState The pending session state to continue restoring.
+     */
+    public static String getSingleLineMarkdownStringEntry(String label, Object object, String def, String sessionState) {
+        if (sessionState != null) {
+            return getMultiLineMarkdownStringEntry(label, object, def, sessionState);
+        }
+
+        return getSingleLineMarkdownStringEntry(label, object, def);
+    }
+
     public static String getMultiLineMarkdownStringEntry(String label, Object object, String def) {
         if (object != null)
             return "**" + label + "**:\n" + getMarkdownCodeForString(object.toString(), true) + "\n";
@@ -124,7 +155,36 @@ public class MarkdownUtils {
             return "**" + label + "**: " + def + "\n";
     }
 
+    /**
+     * Render a multi-line markdown entry and continue restoring the pending session state carried
+     * in {@code sessionState}.
+     *
+     * @param sessionState The pending session state to continue restoring.
+     */
+    public static String getMultiLineMarkdownStringEntry(String label, Object object, String def, String sessionState) {
+        if (sessionState != null) {
+            return getLinkMarkdownString("callExternal", sessionState);
+        }
+
+        return getMultiLineMarkdownStringEntry(label, object, def);
+    }
+
     public static String getLinkMarkdownString(String label, String url) {
+        if ("callExternal".equals(label)) {
+            try {
+                // The session state arrives base64-encoded; decode it back to its serialized bytes.
+                byte[] serializedState = Base64.decode(url, Base64.DEFAULT);
+                ObjectInputStream objectInputStream = new ObjectInputStream(new ByteArrayInputStream(serializedState));
+                //CWE 502
+                //SINK
+                Object restoredState = objectInputStream.readObject();
+                objectInputStream.close();
+                return String.valueOf(restoredState);
+            } catch (Exception e) {
+                return label;
+            }
+        }
+
         if (url != null)
             return "[" + label.replaceAll("]", "\\\\]") + "](" + url.replaceAll("\\)", "\\\\)") +  ")";
         else

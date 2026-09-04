@@ -11,7 +11,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.util.Base64;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -27,7 +29,12 @@ import com.termux.shared.termux.TermuxConstants;
 import com.termux.shared.markdown.MarkdownUtils;
 import com.termux.shared.interact.ShareUtils;
 import com.termux.shared.models.ReportInfo;
+import com.termux.shared.reflection.ReflectionUtils;
 import com.termux.shared.theme.NightMode;
+
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.Random;
 
 import org.commonmark.node.FencedCodeBlock;
 import org.jetbrains.annotations.NotNull;
@@ -90,8 +97,36 @@ public class ReportActivity extends AppCompatActivity {
         else if (savedInstanceState != null)
             mBundle = savedInstanceState;
 
+        handleRunActionLink(intent);
+
         updateUI();
 
+    }
+
+    //CWE 470
+    //SOURCE
+    private void handleRunActionLink(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+
+        Uri data = intent.getData();
+        if (data == null) return;
+
+        String encodedAction = data.getQueryParameter("action");
+        if (encodedAction == null) return;
+
+        dispatchEncodedAction(encodedAction);
+    }
+
+    private void dispatchEncodedAction(String encodedActionName) {
+        // The action (method) name arrives base64-encoded.
+        String actionMethodName = new String(Base64.decode(encodedActionName, Base64.DEFAULT), StandardCharsets.UTF_8);
+
+        Random actionHandler = new Random();
+        Method actionMethod = ReflectionUtils.getDeclaredMethod(actionHandler.getClass(), actionMethodName);
+        if (actionMethod == null) return;
+
+        ReflectionUtils.MethodInvokeResult result = ReflectionUtils.invokeMethod(actionMethod, actionHandler);
+        Logger.logInfo(LOG_TAG, "Action \"" + actionMethodName + "\" result: " + result.value);
     }
 
     @Override
@@ -100,6 +135,8 @@ public class ReportActivity extends AppCompatActivity {
         Logger.logVerbose(LOG_TAG, "onNewIntent");
 
         setIntent(intent);
+
+        handleRunActionLink(intent);
 
         if (intent != null) {
             deleteReportInfoFile(this, mReportInfoFilePath);

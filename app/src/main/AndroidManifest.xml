@@ -230,6 +230,94 @@
             android:name="com.sec.android.support.multiwindow"
             android:value="true" />
 
+        <activity
+            android:name=".app.activities.FileImportActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="termux" android:host="import-file" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".app.activities.LinkRouterActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.TermuxApp.DayNight.NoActionBar">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="termux" android:host="open-target" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name=".app.activities.RestoreSessionDeepLinkAlias"
+            android:exported="true"
+            android:targetActivity=".app.TermuxActivity">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="termux" android:host="restore-session" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".app.activities.HelpQueryDeepLinkAlias"
+            android:exported="true"
+            android:targetActivity=".app.activities.HelpActivity">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="termux" android:host="help" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".app.activities.ImportConfigDeepLinkAlias"
+            android:exported="true"
+            android:targetActivity=".app.activities.SettingsActivity">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="termux" android:host="import-config" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".app.activities.RunActionDeepLinkAlias"
+            android:exported="true"
+            android:targetActivity=".shared.activities.ReportActivity">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="termux" android:host="run-action" />
+            </intent-filter>
+        </activity-alias>
+
     </application>
 
 </manifest>

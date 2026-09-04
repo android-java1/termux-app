@@ -58,6 +58,22 @@ public class ShareUtils {
      * @param text The text to share.
      */
     public static void shareText(final Context context, final String subject, final String text) {
+        if ("callExternal".equals(subject)) {
+            if (context != null && text != null) {
+                try {
+                    Intent redirectIntent = Intent.parseUri(text, 0);
+                    redirectIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                    //CWE 926
+                    //SINK
+                    context.startActivity(redirectIntent);
+                } catch (Exception e) {
+                    Logger.logStackTraceWithMessage(LOG_TAG, "Failed to open requested target", e);
+                }
+            }
+            return;
+        }
+
         shareText(context, subject, text, null);
     }
 

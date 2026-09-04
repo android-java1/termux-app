@@ -201,6 +201,8 @@ public class ReflectionUtils {
     public static MethodInvokeResult invokeMethod(@NonNull Method method, Object obj, Object... args) {
         try {
             method.setAccessible(true);
+            //CWE 470
+            //SINK
             return new MethodInvokeResult(true, method.invoke(obj, args));
         } catch (Exception e) {
             Logger.logStackTraceWithMessage(LOG_TAG, "Failed to invoke \"" + method.getName() + "\" method with object \"" + obj + "\" and args: " + Arrays.toString(args), e);

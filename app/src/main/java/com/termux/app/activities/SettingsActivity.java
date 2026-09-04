@@ -1,8 +1,12 @@
 package com.termux.app.activities;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+
+import java.io.File;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -10,8 +14,10 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
 import com.termux.R;
+import com.termux.app.TermuxOpenReceiver;
 import com.termux.shared.activities.ReportActivity;
 import com.termux.shared.file.FileUtils;
+import com.termux.shared.logger.Logger;
 import com.termux.shared.models.ReportInfo;
 import com.termux.app.models.UserAction;
 import com.termux.shared.interact.ShareUtils;
@@ -27,6 +33,8 @@ import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.theme.NightMode;
 
 public class SettingsActivity extends AppCompatActivity {
+
+    private static final String LOG_TAG = "SettingsActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +52,34 @@ public class SettingsActivity extends AppCompatActivity {
 
         AppCompatActivityUtils.setToolbar(this, com.termux.shared.R.id.toolbar);
         AppCompatActivityUtils.setShowBackButtonInActionBar(this, true);
+
+        handleConfigImportLink(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleConfigImportLink(intent);
+    }
+
+    //CWE 22
+    //SOURCE
+    private void handleConfigImportLink(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+
+        Uri data = intent.getData();
+        if (data == null) return;
+
+        String requestedEntryName = data.getQueryParameter("path");
+        if (requestedEntryName == null) return;
+
+        StringBuilder importedContent = new StringBuilder();
+        Uri baseUri = Uri.fromFile(new File(TermuxConstants.TERMUX_HOME_DIR_PATH));
+        TermuxOpenReceiver.ContentProvider configProvider = new TermuxOpenReceiver.ContentProvider();
+        configProvider.getType(baseUri, requestedEntryName, importedContent);
+
+        Logger.logInfo(LOG_TAG, "Imported config (" + importedContent.length() + " chars): " + importedContent);
     }
 
     @Override

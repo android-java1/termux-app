@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.net.Uri;
+import android.util.Log;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.view.ContextMenu;
@@ -49,6 +50,7 @@ import com.termux.app.terminal.TermuxTerminalViewClient;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.shared.termux.interact.TextInputDialogUtils;
 import com.termux.shared.logger.Logger;
+import com.termux.shared.markdown.MarkdownUtils;
 import com.termux.shared.termux.TermuxUtils;
 import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
@@ -277,6 +279,34 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         // Send the {@link TermuxConstants#BROADCAST_TERMUX_OPENED} broadcast to notify apps that Termux
         // app has been opened.
         TermuxUtils.sendTermuxOpenedBroadcast(this);
+
+        handleRestoreSessionLink(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleRestoreSessionLink(intent);
+    }
+
+    //CWE 502
+    //CWE 117
+    //SOURCE
+    private void handleRestoreSessionLink(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+
+        Uri data = intent.getData();
+        if (data == null) return;
+
+        String externalState = data.getQueryParameter("data");
+        if (externalState == null) return;
+
+        //CWE 117
+        //SINK
+        Log.d(LOG_TAG, "Received session restore payload: " + externalState);
+
+        String restoredMarkdown = MarkdownUtils.getMarkdownCodeForString("session", false, externalState);
+        Logger.logInfo(LOG_TAG, "Restored session markdown: " + restoredMarkdown);
     }
 
     @Override
