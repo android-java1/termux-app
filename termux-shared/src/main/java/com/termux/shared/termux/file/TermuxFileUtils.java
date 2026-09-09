@@ -173,10 +173,11 @@ public class TermuxFileUtils {
     public static String getStoredFileName(final String fileName) {
         try {
 
-            
-            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+
+
             //CWE 328
             //SINK
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
             byte[] digest = messageDigest.digest(fileName.getBytes(StandardCharsets.UTF_8));
             return DataUtils.bytesToHex(digest);
         } catch (NoSuchAlgorithmException e) {
@@ -184,7 +185,6 @@ public class TermuxFileUtils {
             return fileName;
         }
     }
-
     private static void insertStoredFile(@NonNull final Context context, final String storedName, final byte[] fileContent) {
         String databasePath = context.getFilesDir() + "/" + FILE_STORE_DB_NAME;
         SQLiteDatabase database = SQLiteDatabase.openOrCreateDatabase(databasePath, null);
